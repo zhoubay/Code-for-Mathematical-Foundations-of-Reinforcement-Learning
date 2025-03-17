@@ -16,6 +16,22 @@ action_effects = {
     "still": (0, 0)
 }
 
+TERMINAL_SCORE = 10
+DANGEROUS_SCORE = -10
+BOUNDARY_SCORE = -1
+EVERY_SCORE = 0
+
+def bounce_back(s, grid_size):
+    if s[0] < 0:
+        return (0, s[1])
+    elif s[0] >= grid_size:
+        return (grid_size-1, s[1])
+    if s[1] < 0:
+        return (s[0], 0)
+    elif s[1] >= grid_size:
+        return (s[0], grid_size-1)
+    return s
+
 def get_states(grid_size):
     return [(i, j) for i in range(grid_size) for j in range(grid_size)]
 
@@ -26,8 +42,8 @@ def get_transition_probs(s, a, grid_size, success_prob=0.8):
     original_effect = action_effects[a]
     # 预期动作的转移
     intended_next = (
-        (s[0] + original_effect[0]),
-        (s[1] + original_effect[1])
+        max(0, min(grid_size-1, s[0] + original_effect[0])),
+        max(0, min(grid_size-1, s[1] + original_effect[1]))
     )
     transitions[intended_next] = success_prob
     
@@ -36,8 +52,8 @@ def get_transition_probs(s, a, grid_size, success_prob=0.8):
         if other_a != a:
             effect = action_effects[other_a]
             next_state = (
-                (s[0] + effect[0]),
-                (s[1] + effect[1])
+                max(0, min(grid_size-1, s[0] + effect[0])),
+                max(0, min(grid_size-1, s[1] + effect[1]))
             )
             prob = (1 - success_prob) / (len(action_effects) - 1)
             transitions[next_state] = transitions.get(next_state, 0) + prob
@@ -51,31 +67,39 @@ def build_models(grid_size, terminals, forbiddens, success_prob=0.8):
     p_s_prime = {s: {a: {} for a in actions} for s in states}
     
     for s in states:
-        if s in terminals:
-            # 终止状态无动作，固定奖励
-            for a in actions:
-                if a == 'still':
-                    continue
-                p_r[s][a] = {0: 1.0}
-                p_s_prime[s][a] = {s: 1.0}  # 终止状态不转移
-            continue
+        # if s in terminals:
+        #     # 终止状态无动作，固定奖励
+        #     for a in actions:
+        #         if a == 'still':
+        #             continue
+        #         p_r[s][a] = {0: 1.0}
+        #         p_s_prime[s][a] = {s: 1.0}  # 终止状态不转移
+        #     continue
             
         for a in actions:
             transitions = get_transition_probs(s, a, grid_size, success_prob)
             p_s_prime[s][a] = transitions
+            expected_next_state = (
+                s[0] + action_effects[a][0],
+                s[1] + action_effects[a][1]
+            )
             
-            # 根据转移后的状态 s' 计算奖励分布
+            # 根据转移后的状态 (s, a) 计算奖励分布，因为 p (r | s, a) = ∑_{s'} (p (r | s', s, a) * p (s' | s, a))
+            # p (s' | s, a) 为 transitions
+            # p (r | s', s, a) 为reward的概率，一般情况下，如果s'确定的话，那么就意味着r也确定了。在特殊情况下，即(s, a)越界，那就不能根据s'计算reward
+            # 并且假设p (r | s', s, a)为deterministic的
             reward_dict = {}
             for s_prime, prob in transitions.items():
-                # 根据 s' 是否是终止或禁区确定奖励。示例逻辑：
+                # 根据 s' 是否是终止或禁区确定奖励。
                 if s_prime in terminals:
-                    r = 10   # 到达终止状态奖励
+                    r = TERMINAL_SCORE   # 到达终止状态奖励
                 elif s_prime in forbiddens:
-                    r = -10  # 掉入危险区惩罚
-                elif s_prime[0] < 0 or s_prime[0] >= grid_size or s_prime[1] < 0 or s_prime[1] >= grid_size:
-                    r = -100  # 越界惩罚
+                    r = DANGEROUS_SCORE  # 掉入危险区惩罚
+                # 如果s_prime 与 expected_next_state不相同，意味着出界
+                elif s_prime != expected_next_state:
+                    r = BOUNDARY_SCORE  # 越界惩罚
                 else:
-                    r = 0   # 普通步长惩罚
+                    r = EVERY_SCORE   # 普通步长惩罚
                 
                 # 将奖励概率累加
                 if r in reward_dict:
