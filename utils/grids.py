@@ -2,7 +2,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
+from matplotlib.colors import to_rgb
+
 
 # 动作空间 [上, 下, 左, 右]
 actions = ['up', 'down', 'left', 'right', "still"]
@@ -110,41 +111,93 @@ def build_models(grid_size, terminals, forbiddens, success_prob=0.8):
             p_r[s][a] = reward_dict
     
     return states, p_r, p_s_prime
-
-def plot_values(v_dict, title, save_path=None):
-    grid_size = int(np.sqrt(len(v_dict)))
-    grid = np.zeros((grid_size, grid_size))
-    for (i, j), val in v_dict.items():
-        grid[i][j] = val
-    plt.figure(figsize=(6,6))
-    plt.imshow(grid, cmap='viridis', origin='upper')
-    plt.colorbar()
-    plt.title(title)
-    plt.axis('off')
-    for i in range(grid_size):
-        for j in range(grid_size):
-            plt.text(j, i, f"{grid[i, j]:.1f}", ha='center', va='center', color='white')
-
+def plot_values_and_policy(value_dict, policy_dict, 
+                           forbidden_cells=None, target_cells=None,
+                           forbidden_color='orange', target_color='limegreen', 
+                           bg_color='white', title=None, save_path=None, 
+                           action_symbols=None, value_format="{:.1f}", 
+                           fontsize=12, figsize=(12, 6)):
+    """并排绘制数值表和策略表，通用背景色设置
+    
+    Args:
+        value_dict: {(i,j): float} 数值字典
+        policy_dict: {(i,j): str} 策略动作字典
+        forbidden_cells: list 禁区坐标列表
+        target_cells: list 目标区坐标列表
+        forbidden_color: 禁区背景色
+        target_color: 目标区背景色
+        bg_color: 常规背景色
+    """
+    # 初始化区域设置
+    forbidden_cells = forbidden_cells or []
+    target_cells = target_cells or []
+    
+    # 确定网格尺寸
+    grid_size = int(np.sqrt(len(value_dict)))
+    value_grid = np.zeros((grid_size, grid_size))
+    policy_grid = np.empty((grid_size, grid_size), dtype='object')
+    
+    # 填充数据
+    for (i, j), val in value_dict.items():
+        value_grid[i, j] = val
+    for (i, j), action in policy_dict.items():
+        policy_grid[i, j] = action
+    
+    # 创建画布和子图
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # 通用绘图函数
+    def plot_grid(ax, data, is_value=True):
+        """核心绘图函数，包含背景色和文本逻辑"""
+        # 生成背景色矩阵
+        bg_colors = np.full((grid_size, grid_size, 3), to_rgb(bg_color))
+        for (i, j) in forbidden_cells:
+            bg_colors[i, j] = to_rgb(forbidden_color)
+        for (i, j) in target_cells:
+            bg_colors[i, j] = to_rgb(target_color)
+        
+        # 绘制背景色
+        ax.imshow(bg_colors, origin='upper')
+        
+        # 添加单元格数据
+        for i in range(grid_size):
+            for j in range(grid_size):
+                bg_rgb = bg_colors[i, j]
+                brightness = np.dot(bg_rgb, [0.299, 0.587, 0.114])
+                text_color = 'black' if brightness > 0.5 else 'white'
+                
+                if is_value:
+                    # 数值文本
+                    ax.text(j, i, value_format.format(data[i,j]), 
+                           ha='center', va='center', color=text_color, fontsize=fontsize)
+                else:
+                    # 策略符号
+                    action_dict = data[i, j]
+                    # 选出概率最高的action
+                    action = max(action_dict, key=action_dict.get)
+                    symbol = action_symbols.get(action, action)
+                    ax.text(j, i, symbol, 
+                           ha='center', va='center', color=text_color, fontsize=fontsize)
+    
+    # 绘制左图（数值表）
+    plot_grid(ax1, value_grid, is_value=True)
+    ax1.set_title("State Values")
+    ax1.axis('off')
+    
+    # 绘制右图（策略表）
+    if action_symbols is None:
+        action_symbols = {'up':'↑', 'down':'↓', 'left':'←', 'right':'→', 'still':'⬤'}
+    plot_grid(ax2, policy_grid, is_value=False)
+    ax2.set_title("Policy")
+    ax2.axis('off')
+    
+    # 全局标题
+    if title:
+        plt.suptitle(title, y=0.95)
+    
+    plt.tight_layout()
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight', dpi=150)
     else:
         plt.show()
     plt.close()
-
-def plot_policy(policy_dict):
-    grid_size = int(np.sqrt(len(policy_dict)))
-    action_symbols = {
-        'up': '↑', 'down': '↓', 'left': '←', 'right': '→',
-        'still': '⬤'
-    }
-    grid = np.empty((grid_size, grid_size), dtype=str)
-    for (i, j), a in policy_dict.items():
-        grid[i][j] = action_symbols[a]
-    plt.figure(figsize=(6,6))
-    plt.imshow(np.zeros((grid_size, grid_size)), cmap='Blues')
-    plt.title("Optimal Policy")
-    for i in range(grid_size):
-        for j in range(grid_size):
-            plt.text(j, i, grid[i, j], ha='center', va='center', fontsize=15)
-    plt.axis('off')
-    plt.show()
