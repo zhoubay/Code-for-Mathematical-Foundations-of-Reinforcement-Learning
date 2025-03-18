@@ -46,10 +46,6 @@ def value_iteration(
         policy_new = {}
         for s in states:
             policy_new[s] = {}
-            if s in target_areas:
-                value_new[s] = 0  # 终止状态价值保持0（已终止）
-                policy_new[s] = {"still": 1.0}
-                continue
             max_q = -float("inf")
             argmax_q_a = None
             for a in actions:
