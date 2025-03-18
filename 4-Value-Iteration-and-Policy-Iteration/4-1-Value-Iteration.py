@@ -70,6 +70,9 @@ def value_iteration(
                 q = expected_r + gamma * expected_v
                 max_q = max(max_q, q)
                 argmax_q_a = a if q == max_q else argmax_q_a
+                # ------------------------------------------------------------------------------------
+                # End of code snippet
+                # ------------------------------------------------------------------------------------
             # policy update
             policy_new[s][argmax_q_a] = 1.0
             # value update
@@ -94,6 +97,7 @@ def value_iteration(
 
 
 # 运行算法
+print("Running Value Iteration...")
 gamma = 0.9
 return_dict = value_iteration(
     p_r,
@@ -110,7 +114,7 @@ policy_optimal = return_dict["p"]
 v_history = return_dict["v_history"]
 p_history = return_dict["p_history"]
 
-
+print("Start plotting...")
 plot_values_and_policy_gif(
     v_history,
     p_history,
@@ -119,6 +123,7 @@ plot_values_and_policy_gif(
     gif_save_path=os.path.join(
         os.path.dirname(__file__), "figs/Value_iteration.gif"
     ),
+    verbose=True,
 )
 plot_values_and_policy(
     value_dict=v_history[-1],

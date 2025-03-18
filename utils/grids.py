@@ -5,6 +5,7 @@ from matplotlib.colors import to_rgb
 import os
 import tempfile
 from PIL import Image
+from tqdm import tqdm
 
 
 # 动作空间 [上, 下, 左, 右]
@@ -73,14 +74,12 @@ def build_models(grid_size, terminals, forbiddens, success_prob=0.8):
     p_s_prime = {s: {a: {} for a in actions} for s in states}
 
     for s in states:
-        # if s in terminals:
-        #     # 终止状态无动作，固定奖励
-        #     for a in actions:
-        #         if a == 'still':
-        #             continue
-        #         p_r[s][a] = {0: 1.0}
-        #         p_s_prime[s][a] = {s: 1.0}  # 终止状态不转移
-        #     continue
+        if s in terminals:
+            # 终止状态无动作，固定奖励
+            for a in actions:
+                p_r[s][a] = {0: 1.0}
+                p_s_prime[s][a] = {s: 1.0}  # 终止状态不转移
+            continue
 
         for a in actions:
             transitions = get_transition_probs(s, a, grid_size, success_prob)
@@ -240,12 +239,21 @@ def plot_values_and_policy(
 
 
 def plot_values_and_policy_gif(
-    v_history, p_history, forbidden_areas, target_areas, gif_save_path
+    v_history,
+    p_history,
+    forbidden_areas,
+    target_areas,
+    gif_save_path,
+    verbose=False,
 ):
     file_paths = []
     with tempfile.TemporaryDirectory() as tmpdir:
         # 画图
-        for idx, (v_h, p_h) in enumerate(zip(v_history, p_history)):
+        if verbose:
+            iteration = tqdm(zip(v_history, p_history), total=len(v_history))
+        else:
+            iteration = zip(v_history, p_history)
+        for idx, (v_h, p_h) in enumerate(iteration):
             temp_file = os.path.join(tmpdir, "plot_" + str(idx) + ".png")
             plot_values_and_policy(
                 value_dict=v_h,
