@@ -70,8 +70,7 @@ def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
     new_policy = {}
     for s in states:
         new_policy[s] = {}
-        max_q = -float('inf')
-        argmax_q_a = None
+        q_list = []
         # 遍历所有可能的动作
         for a in actions:
             # ------------------------------------------------------------------------------------
@@ -80,17 +79,17 @@ def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
             # 建议使用列表推导来实现下面的代码
             # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
             # 先通过p_r计算expected_r，再通过p_s_prime计算expected_next_v，累积加权到q
-            # 记录最大q和对应的动作
-            # Expected code: ~5 lines
+            # 将(q, a) 存入q_list
+            # Expected code: ~4 lines
             # ------------------------------------------------------------------------------------
             expected_r = sum(prob * r for r, prob in p_r[s][a].items())
             expected_next_v = sum(prob * v[s_prime] for s_prime, prob in p_s_prime[s][a].items())
             q = expected_r + gamma * expected_next_v
-            max_q = max(max_q, q)
-            argmax_q_a = a if q == max_q else argmax_q_a
+            q_list.append((q, a))
             # ------------------------------------------------------------------------------------
             # End of code snippet
             # ------------------------------------------------------------------------------------
+        argmax_q_a = max(q_list, key=lambda x: x[0])[1]
         # 生成确定性策略（当前最优动作的概率为1）
         new_policy[s][argmax_q_a] = 1.0
     return new_policy

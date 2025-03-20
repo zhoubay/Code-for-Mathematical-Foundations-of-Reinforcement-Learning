@@ -46,8 +46,7 @@ def value_iteration(
         policy_new = {}
         for s in states:
             policy_new[s] = {}
-            max_q = -float("inf")
-            argmax_q_a = None
+            q_list = []
             for a in actions:
                 # ------------------------------------------------------------------------------------
                 # 计算q_k(s, a)的值。
@@ -55,8 +54,8 @@ def value_iteration(
                 # 建议使用列表推导来实现下面的代码
                 # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
                 # 可以通过调取p_r的值来计算expected_r, 然后通过列表推导计算expected_v，最后计算q_k(s, a)
-                # 最后获取最大的q_k(s, a)作为max_q，获取最大的a作为max_q_a
-                # Expected code: ~5 lines
+                # 将(q, a) 存入q_list，然后取最大值，更新policy和value
+                # Expected code: ~4 lines
                 # ------------------------------------------------------------------------------------
                 expected_r = sum(prob * r for r, prob in p_r[s][a].items())
                 expected_v = sum(
@@ -64,11 +63,11 @@ def value_iteration(
                     for s_prime, prob in p_s_prime[s][a].items()
                 )
                 q = expected_r + gamma * expected_v
-                max_q = max(max_q, q)
-                argmax_q_a = a if q == max_q else argmax_q_a
+                q_list.append((q, a))
                 # ------------------------------------------------------------------------------------
                 # End of code snippet
                 # ------------------------------------------------------------------------------------
+            max_q, argmax_q_a = max(q_list, key=lambda x: x[0])
             # policy update
             policy_new[s][argmax_q_a] = 1.0
             # value update
