@@ -10,17 +10,7 @@ from utils.grids import (
     plot_values_and_policy_gif,
 )
 
-# 定义网格参数
-grid_size = 5
-
-target_areas = [(3, 2)]  # 终止和危险状态
-forbidden_areas = [(1, 1), (1, 2), (2, 2), (3, 1), (3, 3), (4, 1)]  # 禁止状态
-
-states, p_r, p_s_prime = build_models(
-    grid_size, target_areas, forbidden_areas, success_prob=1
-)
-v_initial = {s: 0 for s in states}
-p_initial = {s: {"still": 1.0} for s in states}
+from utils.test_utils import grid_load_json
 
 
 def value_iteration(
@@ -82,8 +72,8 @@ def value_iteration(
         if delta < threshold:
             break
     return_dict = {
-        "v": v,
-        "p": p,
+        "v": v.copy(),
+        "p": p.copy(),
     }
     if save_history:
         return_dict["v_history"] = v_history
@@ -91,42 +81,77 @@ def value_iteration(
     return return_dict
 
 
-# 运行算法
-print("Running Value Iteration...")
-gamma = 0.9
-return_dict = value_iteration(
-    p_r,
-    p_s_prime,
-    v_initial,
-    states,
-    target_areas,
-    actions,
-    gamma,
-    save_history=True,
+example_root = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "examples")
 )
-v_optimal = return_dict["v"]
-policy_optimal = return_dict["p"]
-v_history = return_dict["v_history"]
-p_history = return_dict["p_history"]
+grid_example_list = [
+    os.path.join(example_root, "grids_5.json"),
+]
+for grid_example in grid_example_list:
+    grid_dict = grid_load_json(grid_example)
+    grid_size = grid_dict["grid_size"]
+    target_areas = grid_dict["target_areas"]
+    forbidden_areas = grid_dict["forbidden_areas"]
+    expected_optimal_v = grid_dict["optimal_value"]
+    expected_optimal_p = grid_dict["optimal_policy"]
 
-print("Start plotting...")
-plot_values_and_policy_gif(
-    v_history,
-    p_history,
-    forbidden_areas,
-    target_areas,
-    gif_save_path=os.path.join(
-        os.path.dirname(__file__), "figs/Value_iteration.gif"
-    ),
-    verbose=True,
-)
-plot_values_and_policy(
-    value_dict=v_history[-1],
-    policy_dict=p_history[-1],
-    forbidden_cells=forbidden_areas,
-    target_cells=target_areas,
-    title="State Value and Policy at Final Iteration",
-    save_path=os.path.join(
-        os.path.dirname(__file__), "figs/Final_value_iteration.png"
-    ),
-)
+    states, p_r, p_s_prime = build_models(
+        grid_size, target_areas, forbidden_areas, success_prob=1
+    )
+    v_initial = {s: 0 for s in states}
+    p_initial = {s: {"still": 1.0} for s in states}
+
+    # 运行算法
+    print("Running Value Iteration...")
+    gamma = 0.9
+    return_dict = value_iteration(
+        p_r,
+        p_s_prime,
+        v_initial,
+        states,
+        target_areas,
+        actions,
+        gamma,
+        save_history=True,
+    )
+    v_optimal = return_dict["v"]
+    policy_optimal = return_dict["p"]
+    v_history = return_dict["v_history"]
+    p_history = return_dict["p_history"]
+
+    # 检查v_optimal和expected_optimal_v是否一致
+    for state in v_optimal:
+        assert abs(v_optimal[state] - expected_optimal_v[state]) < 1e-5
+    # 检查policy_optimal和expected_optimal_p是否一致
+    for state in policy_optimal:
+        for action in policy_optimal[state]:
+            assert (
+                abs(
+                    policy_optimal[state][action]
+                    - expected_optimal_p[state][action]
+                )
+                < 1e-5
+            )
+    print(f"Pass Value Iteration Test!")
+
+    print("Start plotting...")
+    plot_values_and_policy_gif(
+        v_history,
+        p_history,
+        forbidden_areas,
+        target_areas,
+        gif_save_path=os.path.join(
+            os.path.dirname(__file__), "figs/Value_iteration.gif"
+        ),
+        verbose=True,
+    )
+    plot_values_and_policy(
+        value_dict=v_history[-1],
+        policy_dict=p_history[-1],
+        forbidden_cells=forbidden_areas,
+        target_cells=target_areas,
+        title="State Value and Policy at Final Iteration",
+        save_path=os.path.join(
+            os.path.dirname(__file__), "figs/Final_value_iteration.png"
+        ),
+    )
