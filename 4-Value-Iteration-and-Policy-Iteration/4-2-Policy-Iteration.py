@@ -23,7 +23,9 @@ v_initial = {s: 0 for s in states}
 p_initial = {s: {"still": 1.0} for s in states}
 
 
-def policy_evaluation(states, policy, p_r, p_s_prime, gamma, threshold=1e-5, max_iter=100):
+def policy_evaluation(
+    states, policy, p_r, p_s_prime, gamma, threshold=1e-5, max_iter=100
+):
     """
     策略评估：计算当前策略下的状态价值函数
     """
@@ -49,7 +51,10 @@ def policy_evaluation(states, policy, p_r, p_s_prime, gamma, threshold=1e-5, max
                 # 计算预期奖励
                 expected_r = sum(prob * r for r, prob in p_r[s][a].items())
                 # 计算预期下一状态价值
-                expected_next_v = sum(prob * v[s_prime] for s_prime, prob in p_s_prime[s][a].items())
+                expected_next_v = sum(
+                    prob * v[s_prime]
+                    for s_prime, prob in p_s_prime[s][a].items()
+                )
                 # 累积加权值
                 total += policy[s][a] * (expected_r + gamma * expected_next_v)
                 # ------------------------------------------------------------------------------------
@@ -62,6 +67,7 @@ def policy_evaluation(states, policy, p_r, p_s_prime, gamma, threshold=1e-5, max
             break
         v = value_new.copy()
     return v
+
 
 def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
     """
@@ -83,7 +89,9 @@ def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
             # Expected code: ~4 lines
             # ------------------------------------------------------------------------------------
             expected_r = sum(prob * r for r, prob in p_r[s][a].items())
-            expected_next_v = sum(prob * v[s_prime] for s_prime, prob in p_s_prime[s][a].items())
+            expected_next_v = sum(
+                prob * v[s_prime] for s_prime, prob in p_s_prime[s][a].items()
+            )
             q = expected_r + gamma * expected_next_v
             q_list.append((q, a))
             # ------------------------------------------------------------------------------------
@@ -94,27 +102,46 @@ def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
         new_policy[s][argmax_q_a] = 1.0
     return new_policy
 
-def policy_iteration(states, actions, p_r, p_s_prime, gamma, initial_policy=None, threshold=1e-5, max_iter=1000, save_history=False):
+
+def policy_iteration(
+    states,
+    actions,
+    p_r,
+    p_s_prime,
+    gamma,
+    initial_policy=None,
+    threshold=1e-5,
+    max_iter=1000,
+    save_history=False,
+):
     # 初始化随机策略（均匀分布）
     if initial_policy is None:
         initial_policy = {s: {"still": 1.0} for s in states}
-    
+
     if save_history:
         v_history = []
         p_history = []
-    
+
     policy_k = initial_policy.copy()
     v_policy_k_minus_1 = None
     for k in range(max_iter):
         # 1. 策略评估
         v_policy_k = policy_evaluation(states, policy_k, p_r, p_s_prime, gamma)
         # 2. 策略改进
-        policy_k_plus_1 = policy_improvement(states, actions, v_policy_k, p_r, p_s_prime, gamma)
+        policy_k_plus_1 = policy_improvement(
+            states, actions, v_policy_k, p_r, p_s_prime, gamma
+        )
         # 检查策略是否稳定
         if v_policy_k_minus_1 is not None:
-            delta_v = sum((v_policy_k[s] - v_policy_k_minus_1[s]) ** 2 for s in states) ** 0.5
+            delta_v = (
+                sum(
+                    (v_policy_k[s] - v_policy_k_minus_1[s]) ** 2
+                    for s in states
+                )
+                ** 0.5
+            )
         else:
-            delta_v = float('inf')
+            delta_v = float("inf")
         if delta_v < threshold:
             break
         v_policy_k_minus_1 = v_policy_k.copy()
@@ -137,11 +164,11 @@ def policy_iteration(states, actions, p_r, p_s_prime, gamma, initial_policy=None
 print("Running Value Iteration...")
 gamma = 0.9
 return_dict = policy_iteration(
-    states = states,
-    actions = actions,
-    p_r = p_r,
-    p_s_prime = p_s_prime,
-    gamma = gamma,
+    states=states,
+    actions=actions,
+    p_r=p_r,
+    p_s_prime=p_s_prime,
+    gamma=gamma,
     save_history=True,
 )
 v_optimal = return_dict["v"]
