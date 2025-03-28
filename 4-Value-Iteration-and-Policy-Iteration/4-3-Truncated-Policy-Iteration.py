@@ -86,7 +86,6 @@ def truncated_policy_iteration(
     j_truncate=3,
     initial_policy=None,
     threshold=1e-5,
-    max_iter=1000,
     save_history=False,
 ):
     """
@@ -109,7 +108,7 @@ def truncated_policy_iteration(
     # 历史记录
     history = {"v_history": [], "p_history": []} if save_history else None
 
-    for _ in range(max_iter):
+    while True:
         # 1. 策略评估（固定j_truncate步）
         v_k = truncated_policy_evaluation(
             states, policy_k, p_r, p_s_prime, gamma, v_k, j_truncate
@@ -127,7 +126,7 @@ def truncated_policy_iteration(
 
         # 判断价值函数是否收敛
         if prev_v_k is not None:
-            delta = max(abs(v_k[s] - prev_v_k[s]) for s in states)
+            delta = (sum((v_k[s] - prev_v_k[s]) ** 2 for s in states)) ** 0.5
             if delta < threshold:
                 break
         prev_v_k = v_k.copy()
@@ -168,8 +167,8 @@ for grid_example in grid_example_list:
         p_r=p_r,
         p_s_prime=p_s_prime,
         gamma=gamma,
-        j_truncate=5,   # 控制评估步数（核心参数）
-        save_history=True
+        j_truncate=5,  # 控制评估步数（核心参数）
+        save_history=True,
     )
     v_optimal = return_dict["v"]
     policy_optimal = return_dict["p"]
@@ -198,7 +197,8 @@ for grid_example in grid_example_list:
             forbidden_areas,
             target_areas,
             gif_save_path=os.path.join(
-                os.path.dirname(__file__), "figs/Truncated_Policy_Iteration.gif"
+                os.path.dirname(__file__),
+                "figs/Truncated_Policy_Iteration.gif",
             ),
             verbose=True,
         )
@@ -209,6 +209,7 @@ for grid_example in grid_example_list:
         target_cells=target_areas,
         title="State Value and Policy at Final Iteration",
         save_path=os.path.join(
-            os.path.dirname(__file__), "figs/Final_truncated_policy_iteration.png"
+            os.path.dirname(__file__),
+            "figs/Final_truncated_policy_iteration.png",
         ),
     )

@@ -21,7 +21,6 @@ def value_iteration(
     actions,
     gamma,
     threshold=1e-5,
-    max_iter=100,
     save_history=False,
 ):
     v = v_init.copy()
@@ -29,7 +28,7 @@ def value_iteration(
     if save_history:
         v_history = []
         p_history = []
-    for k in range(max_iter):
+    while True:
         delta = 0
         value_new = {}
         policy_new = {}

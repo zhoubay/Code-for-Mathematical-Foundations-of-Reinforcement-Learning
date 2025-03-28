@@ -14,13 +14,18 @@ from utils.test_utils import grid_load_json, check_value_and_policy
 
 
 def policy_evaluation(
-    states, policy, p_r, p_s_prime, gamma, threshold=1e-5, max_iter=100
+    states,
+    policy,
+    p_r,
+    p_s_prime,
+    gamma,
+    threshold=1e-5,
 ):
     """
     策略评估：计算当前策略下的状态价值函数
     """
     v = {s: 0.0 for s in states}
-    for _ in range(max_iter):
+    while True:
         delta = 0
         value_new = {}
         for s in states:
@@ -101,7 +106,6 @@ def policy_iteration(
     gamma,
     initial_policy=None,
     threshold=1e-5,
-    max_iter=1000,
     save_history=False,
 ):
     # 初始化随机策略（均匀分布）
@@ -114,7 +118,7 @@ def policy_iteration(
 
     policy_k = initial_policy.copy()
     v_policy_k_minus_1 = None
-    for k in range(max_iter):
+    while True:
         # 1. 策略评估
         v_policy_k = policy_evaluation(states, policy_k, p_r, p_s_prime, gamma)
         # 2. 策略改进
