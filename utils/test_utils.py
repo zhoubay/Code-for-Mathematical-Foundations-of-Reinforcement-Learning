@@ -45,3 +45,42 @@ def grid_load_json(dump_file):
         "optimal_value": _v_optimal,
         "optimal_policy": _policy_optimal,
     }
+
+def check_value_and_policy(
+        generated_value=None, 
+        generated_policy=None, 
+        expected_value=None, 
+        expected_policy=None, 
+        check_type: str = "value",
+        threshold=1e-5
+    ):
+    """
+    Check if the generated value and policy are equal to the expected value and policy within a threshold.
+
+    Args:
+        generated_value (dict): generated value function
+        generated_policy (dict): generated policy function
+        expected_value (dict): expected value function
+        expected_policy (dict): expected policy function
+        check_type (str): "value" or "policy"
+        threshold (float): threshold for checking equality
+
+    Returns:
+        None
+    """
+    allowed_check_types = ["value", "policy"]
+    if check_type == "value":
+        assert generated_value is not None and expected_value is not None, f"generated_value and expected_value should be specified for {check_type} check."
+        # check they have same state
+        # assert set(generated_value.keys()) == set(expected_value.keys()), f"generated_value and expected_value should have same state."
+        # check every value
+        for state in expected_value:
+            assert abs(generated_value[state] - expected_value[state]) < threshold, f"generated_value[{state}] and expected_value[{state}] should be equal within {threshold}."
+    elif check_type == "policy":
+        assert generated_policy is not None and expected_policy is not None, f"generated_policy and expected_policy should be specified for {check_type} check."
+        # check every policy
+        for state in expected_policy:
+            for action in expected_policy[state]:
+                assert abs(generated_policy[state][action] - expected_policy[state][action]) < threshold, f"generated_policy[{state}][{action}] and expected_policy[{state}][{action}] should be equal within {threshold}."
+    else:
+        raise ValueError(f"check_type should be one of {allowed_check_types}.")

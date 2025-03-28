@@ -10,7 +10,7 @@ from utils.grids import (
     plot_values_and_policy_gif,
 )
 
-from utils.test_utils import grid_load_json
+from utils.test_utils import grid_load_json, check_value_and_policy
 
 
 def value_iteration(
@@ -18,7 +18,6 @@ def value_iteration(
     p_s_prime,
     v_init,
     states,
-    target_areas,
     actions,
     gamma,
     threshold=1e-5,
@@ -109,7 +108,6 @@ for grid_example in grid_example_list:
         p_s_prime,
         v_initial,
         states,
-        target_areas,
         actions,
         gamma,
         save_history=True,
@@ -120,18 +118,17 @@ for grid_example in grid_example_list:
     p_history = return_dict["p_history"]
 
     # 检查v_optimal和expected_optimal_v是否一致
-    for state in v_optimal:
-        assert abs(v_optimal[state] - expected_optimal_v[state]) < 1e-5
+    check_value_and_policy(
+        generated_value=v_optimal,
+        expected_value=expected_optimal_v,
+        check_type="value",
+    )
     # 检查policy_optimal和expected_optimal_p是否一致
-    for state in policy_optimal:
-        for action in policy_optimal[state]:
-            assert (
-                abs(
-                    policy_optimal[state][action]
-                    - expected_optimal_p[state][action]
-                )
-                < 1e-5
-            )
+    check_value_and_policy(
+        generated_policy=policy_optimal,
+        expected_policy=expected_optimal_p,
+        check_type="policy",
+    )
     print(f"Pass Value Iteration Test!")
 
     print("Start plotting...")
