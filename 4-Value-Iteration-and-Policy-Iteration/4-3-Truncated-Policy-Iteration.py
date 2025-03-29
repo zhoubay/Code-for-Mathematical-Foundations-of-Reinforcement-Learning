@@ -31,13 +31,24 @@ def truncated_policy_evaluation(
             for a in policy[s]:
                 if policy[s][a] == 0:
                     continue
-                # 计算期望奖励和下一状态价值
+                # ------------------------------------------------------------------------------------
+                # 通过计算每一个action的总和来计算v_new(s)
+                # v_new(s) = ∑_a policy(s, a) * (∑_r p ( r | s, a) * r + gamma * ∑_{s'} p (s' | s, a) * v(s'))
+                # 建议使用列表推导来实现下面的代码
+                # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
+                # 先通过p_r计算expected_r，再通过p_s_prime计算expected_next_v，累积加权到total
+                # 最后在循环外更新value_new[s]
+                # Expected code: ~3 lines
+                # ------------------------------------------------------------------------------------
                 expected_r = sum(prob * r for r, prob in p_r[s][a].items())
                 expected_next_v = sum(
                     prob * v[s_prime]
                     for s_prime, prob in p_s_prime[s][a].items()
                 )
                 total += policy[s][a] * (expected_r + gamma * expected_next_v)
+                # ------------------------------------------------------------------------------------
+                # End of code snippet
+                # ------------------------------------------------------------------------------------
             new_v[s] = total
         v = new_v.copy()
     return v
