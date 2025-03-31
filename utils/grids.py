@@ -7,42 +7,25 @@ import tempfile
 from PIL import Image
 from tqdm import tqdm
 
-
-# 动作空间 [上, 下, 左, 右]
-actions = ["up", "down", "left", "right", "still"]
-
-# 动作对应的坐标变化
-action_effects = {
+ACTIONS = ["up", "down", "left", "right", "still"]
+ACTION_EFFECTS = {
     "up": (-1, 0),
     "down": (1, 0),
     "left": (0, -1),
     "right": (0, 1),
     "still": (0, 0),
 }
-
 TERMINAL_SCORE = 10
 DANGEROUS_SCORE = -10
 BOUNDARY_SCORE = -1
 EVERY_SCORE = 0
 
 
-def bounce_back(s, grid_size):
-    if s[0] < 0:
-        return (0, s[1])
-    elif s[0] >= grid_size:
-        return (grid_size - 1, s[1])
-    if s[1] < 0:
-        return (s[0], 0)
-    elif s[1] >= grid_size:
-        return (s[0], grid_size - 1)
-    return s
-
-
 def get_states(grid_size):
     return [(i, j) for i in range(grid_size) for j in range(grid_size)]
 
 
-def get_transition_probs(s, a, grid_size, success_prob=0.8):
+def get_transition_probs(s, a, grid_size, action_effects, success_prob=0.8):
     """计算状态转移概率，包含随机性"""
     transitions = {}
     original_effect = action_effects[a]
@@ -68,7 +51,9 @@ def get_transition_probs(s, a, grid_size, success_prob=0.8):
 
 
 # 构建 p_r 和 p_s_prime
-def build_models(grid_size, terminals, forbiddens, success_prob=0.8):
+def build_models(
+    grid_size, actions, action_effects, terminals, forbiddens, success_prob=0.8
+):
     states = get_states(grid_size)
     p_r = {s: {a: {} for a in actions} for s in states}
     p_s_prime = {s: {a: {} for a in actions} for s in states}
@@ -82,7 +67,9 @@ def build_models(grid_size, terminals, forbiddens, success_prob=0.8):
             continue
 
         for a in actions:
-            transitions = get_transition_probs(s, a, grid_size, success_prob)
+            transitions = get_transition_probs(
+                s, a, grid_size, action_effects, success_prob
+            )
             p_s_prime[s][a] = transitions
             expected_next_state = (
                 s[0] + action_effects[a][0],
@@ -115,6 +102,72 @@ def build_models(grid_size, terminals, forbiddens, success_prob=0.8):
             p_r[s][a] = reward_dict
 
     return states, p_r, p_s_prime
+
+
+class GridWorld:
+    def __init__(
+        self,
+        grid_size,
+        terminals,
+        forbiddens,
+        success_prob=1.0,
+        actions=ACTIONS,
+        action_effects=ACTION_EFFECTS,
+        terminal_score=TERMINAL_SCORE,
+        dangerous_score=DANGEROUS_SCORE,
+        boundary_score=BOUNDARY_SCORE,
+        every_score=EVERY_SCORE,
+    ):
+        self.grid_size = grid_size
+        self.terminals = terminals
+        self.forbiddens = forbiddens
+        self.success_prob = success_prob
+        self.actions = actions
+        self.action_effects = action_effects
+        self.terminal_score = terminal_score
+        self.dangerous_score = dangerous_score
+        self.boundary_score = boundary_score
+        self.every_score = every_score
+
+        self.states, self.p_r, self.p_s_prime = build_models(
+            grid_size,
+            actions,
+            action_effects,
+            terminals,
+            forbiddens,
+            success_prob,
+        )
+
+    def get_states(self):
+        return self.states
+
+    def get_transition_probs(self, s, a):
+        return self.p_s_prime[s][a]
+
+    def get_reward_probs(self, s, a):
+        return self.p_r[s][a]
+
+    def get_actions(self, s):
+        return self.actions
+
+    def step(self, s, a):
+        """返回:(next_state, reward, done)"""
+        reward = self.get_reward_probs(s, a)[0]
+        next_state = self.get_transition_probs(s, a)[0]
+        done = next_state in self.terminals
+        return next_state, reward, done
+
+
+def bounce_back(s, grid_size):
+    if s[0] < 0:
+        return (0, s[1])
+    elif s[0] >= grid_size:
+        return (grid_size - 1, s[1])
+    if s[1] < 0:
+        return (s[0], 0)
+    elif s[1] >= grid_size:
+        return (s[0], grid_size - 1)
+    return s
 
 
 def plot_values_and_policy(

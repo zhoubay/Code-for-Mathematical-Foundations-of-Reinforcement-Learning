@@ -4,8 +4,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.grids import (
-    build_models,
-    actions,
+    GridWorld,
     plot_values_and_policy,
     plot_values_and_policy_gif,
 )
@@ -14,21 +13,19 @@ from utils.test_utils import grid_load_json, check_value_and_policy
 
 
 def policy_evaluation(
-    states,
+    env,
     policy,
-    p_r,
-    p_s_prime,
     gamma,
     threshold=1e-5,
 ):
     """
     策略评估：计算当前策略下的状态价值函数
     """
-    v = {s: 0.0 for s in states}
+    v = {s: 0.0 for s in env.get_states()}
     while True:
         delta = 0
         value_new = {}
-        for s in states:
+        for s in env.get_states():
             total = 0
             # 遍历所有动作（根据策略的分布）
             for a in policy[s]:
@@ -37,6 +34,9 @@ def policy_evaluation(
                 # ------------------------------------------------------------------------------------
                 # 通过计算每一个action的总和来计算v_new(s)
                 # v_new(s) = ∑_a policy(s, a) * (∑_r p ( r | s, a) * r + gamma * ∑_{s'} p (s' | s, a) * v(s'))
+                # 使用env.get_reward_probs和env.get_transition_probs来计算expected_r和expected_v
+                # 参考信息:  utils/grids.py::GridWorld::get_reward_probs
+                #           utils/grids.py::GridWorld::get_transition_probs
                 # 建议使用列表推导来实现下面的代码
                 # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
                 # 先通过p_r计算expected_r，再通过p_s_prime计算expected_next_v，累积加权到total
@@ -44,11 +44,13 @@ def policy_evaluation(
                 # Expected code: ~3 lines
                 # ------------------------------------------------------------------------------------
                 # 计算预期奖励
-                expected_r = sum(prob * r for r, prob in p_r[s][a].items())
+                expected_r = sum(
+                    prob * r for r, prob in env.get_reward_probs(s, a).items()
+                )
                 # 计算预期下一状态价值
                 expected_next_v = sum(
                     prob * v[s_prime]
-                    for s_prime, prob in p_s_prime[s][a].items()
+                    for s_prime, prob in env.get_transition_probs(s, a).items()
                 )
                 # 累积加权值
                 total += policy[s][a] * (expected_r + gamma * expected_next_v)
@@ -56,7 +58,9 @@ def policy_evaluation(
                 # End of code snippet
                 # ------------------------------------------------------------------------------------
             value_new[s] = total
-        delta = (sum((v[s] - value_new[s]) ** 2 for s in states)) ** 0.5
+        delta = (
+            sum((v[s] - value_new[s]) ** 2 for s in env.get_states())
+        ) ** 0.5
         # 判断是否收敛
         if delta < threshold:
             break
@@ -64,28 +68,34 @@ def policy_evaluation(
     return v
 
 
-def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
+def policy_improvement(env, v, gamma):
     """
     策略改进：根据当前值函数生成新策略
     """
     new_policy = {}
-    for s in states:
+    for s in env.get_states():
         new_policy[s] = {}
         q_list = []
         # 遍历所有可能的动作
-        for a in actions:
+        for a in env.get_actions(s):
             # ------------------------------------------------------------------------------------
             # 计算q ( s, a )
             # q ( s, a ) = expected_r ( s, a ) + gamma * expected_next_v ( s, a )
+            # 使用env.get_reward_probs和env.get_transition_probs来计算expected_r和expected_v
+            # 参考信息:  utils/grids.py::GridWorld::get_reward_probs
+            #           utils/grids.py::GridWorld::get_transition_probs
             # 建议使用列表推导来实现下面的代码
             # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
             # 先通过p_r计算expected_r，再通过p_s_prime计算expected_next_v，累积加权到q
             # 将(q, a) 存入q_list
             # Expected code: ~4 lines
             # ------------------------------------------------------------------------------------
-            expected_r = sum(prob * r for r, prob in p_r[s][a].items())
+            expected_r = sum(
+                prob * r for r, prob in env.get_reward_probs(s, a).items()
+            )
             expected_next_v = sum(
-                prob * v[s_prime] for s_prime, prob in p_s_prime[s][a].items()
+                prob * v[s_prime]
+                for s_prime, prob in env.get_transition_probs(s, a).items()
             )
             q = expected_r + gamma * expected_next_v
             q_list.append((q, a))
@@ -99,10 +109,7 @@ def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
 
 
 def policy_iteration(
-    states,
-    actions,
-    p_r,
-    p_s_prime,
+    env,
     gamma,
     initial_policy=None,
     threshold=1e-5,
@@ -110,7 +117,7 @@ def policy_iteration(
 ):
     # 初始化随机策略（均匀分布）
     if initial_policy is None:
-        initial_policy = {s: {"still": 1.0} for s in states}
+        initial_policy = {s: {"still": 1.0} for s in env.get_states()}
 
     if save_history:
         v_history = []
@@ -120,17 +127,15 @@ def policy_iteration(
     v_policy_k_minus_1 = None
     while True:
         # 1. 策略评估
-        v_policy_k = policy_evaluation(states, policy_k, p_r, p_s_prime, gamma)
+        v_policy_k = policy_evaluation(env, policy_k, gamma)
         # 2. 策略改进
-        policy_k_plus_1 = policy_improvement(
-            states, actions, v_policy_k, p_r, p_s_prime, gamma
-        )
+        policy_k_plus_1 = policy_improvement(env, v_policy_k, gamma)
         # 检查策略是否稳定
         if v_policy_k_minus_1 is not None:
             delta_v = (
                 sum(
                     (v_policy_k[s] - v_policy_k_minus_1[s]) ** 2
-                    for s in states
+                    for s in env.get_states()
                 )
                 ** 0.5
             )
@@ -168,20 +173,15 @@ for grid_example in grid_example_list:
     expected_optimal_v = grid_dict["optimal_value"]
     expected_optimal_p = grid_dict["optimal_policy"]
 
-    states, p_r, p_s_prime = build_models(
-        grid_size, target_areas, forbidden_areas, success_prob=1
-    )
-    v_initial = {s: 0 for s in states}
-    p_initial = {s: {"still": 1.0} for s in states}
+    env = GridWorld(grid_size, target_areas, forbidden_areas, success_prob=1.0)
+    v_initial = {s: 0 for s in env.get_states()}
+    p_initial = {s: {"still": 1.0} for s in env.get_states()}
 
     # 运行算法
     print("Running Value Iteration...")
     gamma = 0.9
     return_dict = policy_iteration(
-        states=states,
-        actions=actions,
-        p_r=p_r,
-        p_s_prime=p_s_prime,
+        env=env,
         gamma=gamma,
         save_history=True,
     )

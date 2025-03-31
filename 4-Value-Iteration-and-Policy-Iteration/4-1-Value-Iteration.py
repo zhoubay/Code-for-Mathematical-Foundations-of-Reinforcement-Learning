@@ -4,8 +4,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.grids import (
-    build_models,
-    actions,
+    GridWorld,
     plot_values_and_policy,
     plot_values_and_policy_gif,
 )
@@ -14,11 +13,8 @@ from utils.test_utils import grid_load_json, check_value_and_policy
 
 
 def value_iteration(
-    p_r,
-    p_s_prime,
+    env,
     v_init,
-    states,
-    actions,
     gamma,
     threshold=1e-5,
     save_history=False,
@@ -32,23 +28,28 @@ def value_iteration(
         delta = 0
         value_new = {}
         policy_new = {}
-        for s in states:
+        for s in env.get_states():
             policy_new[s] = {}
             q_list = []
-            for a in actions:
+            for a in env.get_actions(s):
                 # ------------------------------------------------------------------------------------
                 # 计算q_k(s, a)的值。
                 # q_k(s, a) = expected reward + gamma * expected value of next state
+                # 使用env.get_reward_probs和env.get_transition_probs来计算expected_r和expected_v
+                # 参考信息:  utils/grids.py::GridWorld::get_reward_probs
+                #           utils/grids.py::GridWorld::get_transition_probs
                 # 建议使用列表推导来实现下面的代码
                 # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
                 # 可以通过调取p_r的值来计算expected_r, 然后通过列表推导计算expected_v，最后计算q_k(s, a)
                 # 将(q, a) 存入q_list，然后取最大值，更新policy和value
                 # Expected code: ~4 lines
                 # ------------------------------------------------------------------------------------
-                expected_r = sum(prob * r for r, prob in p_r[s][a].items())
+                expected_r = sum(
+                    prob * r for r, prob in env.get_reward_probs(s, a).items()
+                )
                 expected_v = sum(
                     prob * v[s_prime]
-                    for s_prime, prob in p_s_prime[s][a].items()
+                    for s_prime, prob in env.get_transition_probs(s, a).items()
                 )
                 q = expected_r + gamma * expected_v
                 q_list.append((q, a))
@@ -61,7 +62,9 @@ def value_iteration(
             # value update
             value_new[s] = max_q
         # norm between old and new value function
-        delta = (sum((v[s] - value_new[s]) ** 2 for s in states)) ** 0.5
+        delta = (
+            sum((v[s] - value_new[s]) ** 2 for s in env.get_states())
+        ) ** 0.5
         if save_history:
             v_history.append(value_new.copy())
             p_history.append(policy_new.copy())
@@ -93,22 +96,17 @@ for grid_example in grid_example_list:
     expected_optimal_v = grid_dict["optimal_value"]
     expected_optimal_p = grid_dict["optimal_policy"]
 
-    states, p_r, p_s_prime = build_models(
-        grid_size, target_areas, forbidden_areas, success_prob=1
-    )
-    v_initial = {s: 0 for s in states}
-    p_initial = {s: {"still": 1.0} for s in states}
+    env = GridWorld(grid_size, target_areas, forbidden_areas, success_prob=1.0)
+    v_initial = {s: 0 for s in env.get_states()}
+    p_initial = {s: {"still": 1.0} for s in env.get_states()}
 
     # 运行算法
     print("Running Value Iteration...")
     gamma = 0.9
     return_dict = value_iteration(
-        p_r,
-        p_s_prime,
-        v_initial,
-        states,
-        actions,
-        gamma,
+        env=env,
+        v_init=v_initial,
+        gamma=gamma,
         save_history=True,
     )
     v_optimal = return_dict["v"]

@@ -4,8 +4,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.grids import (
-    build_models,
-    actions,
+    GridWorld,
     plot_values_and_policy,
     plot_values_and_policy_gif,
 )
@@ -13,9 +12,7 @@ from utils.grids import (
 from utils.test_utils import grid_load_json, check_value_and_policy
 
 
-def truncated_policy_evaluation(
-    states, policy, p_r, p_s_prime, gamma, initial_v, j_truncate
-):
+def truncated_policy_evaluation(env, policy, gamma, initial_v, j_truncate):
     """
     部分策略评估：固定迭代次数而非完全收敛
 
@@ -26,7 +23,7 @@ def truncated_policy_evaluation(
     v = initial_v.copy()
     for _ in range(j_truncate):
         new_v = {}
-        for s in states:
+        for s in env.get_states():
             total = 0.0
             for a in policy[s]:
                 if policy[s][a] == 0:
@@ -40,10 +37,12 @@ def truncated_policy_evaluation(
                 # 最后在循环外更新value_new[s]
                 # Expected code: ~3 lines
                 # ------------------------------------------------------------------------------------
-                expected_r = sum(prob * r for r, prob in p_r[s][a].items())
+                expected_r = sum(
+                    prob * r for r, prob in env.get_reward_probs(s, a).items()
+                )
                 expected_next_v = sum(
                     prob * v[s_prime]
-                    for s_prime, prob in p_s_prime[s][a].items()
+                    for s_prime, prob in env.get_transition_probs(s, a).items()
                 )
                 total += policy[s][a] * (expected_r + gamma * expected_next_v)
                 # ------------------------------------------------------------------------------------
@@ -54,28 +53,34 @@ def truncated_policy_evaluation(
     return v
 
 
-def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
+def policy_improvement(env, v, gamma):
     """
     策略改进：根据当前值函数生成新策略
     """
     new_policy = {}
-    for s in states:
+    for s in env.get_states():
         new_policy[s] = {}
         q_list = []
         # 遍历所有可能的动作
-        for a in actions:
+        for a in env.get_actions(s):
             # ------------------------------------------------------------------------------------
             # 计算q ( s, a )
             # q ( s, a ) = expected_r ( s, a ) + gamma * expected_next_v ( s, a )
+            # 使用env.get_reward_probs和env.get_transition_probs来计算expected_r和expected_v
+            # 参考信息:  utils/grids.py::GridWorld::get_reward_probs
+            #           utils/grids.py::GridWorld::get_transition_probs
             # 建议使用列表推导来实现下面的代码
             # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
             # 先通过p_r计算expected_r，再通过p_s_prime计算expected_next_v，累积加权到q
             # 将(q, a) 存入q_list
             # Expected code: ~4 lines
             # ------------------------------------------------------------------------------------
-            expected_r = sum(prob * r for r, prob in p_r[s][a].items())
+            expected_r = sum(
+                prob * r for r, prob in env.get_reward_probs(s, a).items()
+            )
             expected_next_v = sum(
-                prob * v[s_prime] for s_prime, prob in p_s_prime[s][a].items()
+                prob * v[s_prime]
+                for s_prime, prob in env.get_transition_probs(s, a).items()
             )
             q = expected_r + gamma * expected_next_v
             q_list.append((q, a))
@@ -89,10 +94,7 @@ def policy_improvement(states, actions, v, p_r, p_s_prime, gamma):
 
 
 def truncated_policy_iteration(
-    states,
-    actions,
-    p_r,
-    p_s_prime,
+    env,
     gamma,
     j_truncate=3,
     initial_policy=None,
@@ -105,48 +107,48 @@ def truncated_policy_iteration(
     Args:
         j_truncate: 策略评估阶段的固定迭代次数
     """
-    # 策略初始化（确保确定性策略）
-    policy_k = (
-        initial_policy
-        if initial_policy is not None
-        else {s: {"still": 1.0} for s in states}
-    )
+    # 初始化随机策略（均匀分布）
+    if initial_policy is None:
+        initial_policy = {s: {"still": 1.0} for s in env.get_states()}
+
+    if save_history:
+        v_history = []
+        p_history = []
 
     # 初始价值函数为0
-    v_k = {s: 0.0 for s in states}
+    policy_k = initial_policy.copy()
+    v_k = {s: 0.0 for s in env.get_states()}
     prev_v_k = None
-
-    # 历史记录
-    history = {"v_history": [], "p_history": []} if save_history else None
 
     while True:
         # 1. 策略评估（固定j_truncate步）
         v_k = truncated_policy_evaluation(
-            states, policy_k, p_r, p_s_prime, gamma, v_k, j_truncate
+            env, policy_k, gamma, v_k, j_truncate
         )
 
         # 2. 策略改进（同标准策略迭代）
-        policy_next = policy_improvement(
-            states, actions, v_k, p_r, p_s_prime, gamma
-        )
+        policy_next = policy_improvement(env, v_k, gamma)
 
         # 记录历史
         if save_history:
-            history["v_history"].append(v_k.copy())
-            history["p_history"].append(policy_next.copy())
+            v_history.append(v_k.copy())
+            p_history.append(policy_next.copy())
 
         # 判断价值函数是否收敛
         if prev_v_k is not None:
-            delta = (sum((v_k[s] - prev_v_k[s]) ** 2 for s in states)) ** 0.5
+            delta = (
+                sum((v_k[s] - prev_v_k[s]) ** 2 for s in env.get_states())
+            ) ** 0.5
             if delta < threshold:
                 break
         prev_v_k = v_k.copy()
         policy_k = policy_next.copy()
 
-    result = {"v": v_k, "p": policy_k}
+    return_dict = {"v": v_k, "p": policy_k}
     if save_history:
-        result.update(history)
-    return result
+        return_dict["v_history"] = v_history
+        return_dict["p_history"] = p_history
+    return return_dict
 
 
 example_root = os.path.abspath(
@@ -163,20 +165,15 @@ for grid_example in grid_example_list:
     expected_optimal_v = grid_dict["optimal_value"]
     expected_optimal_p = grid_dict["optimal_policy"]
 
-    states, p_r, p_s_prime = build_models(
-        grid_size, target_areas, forbidden_areas, success_prob=1
-    )
-    v_initial = {s: 0 for s in states}
-    p_initial = {s: {"still": 1.0} for s in states}
+    env = GridWorld(grid_size, target_areas, forbidden_areas, success_prob=1.0)
+    v_initial = {s: 0 for s in env.get_states()}
+    p_initial = {s: {"still": 1.0} for s in env.get_states()}
 
     # 运行算法
     print("Running Value Iteration...")
     gamma = 0.9
     return_dict = truncated_policy_iteration(
-        states=states,
-        actions=actions,
-        p_r=p_r,
-        p_s_prime=p_s_prime,
+        env=env,
         gamma=gamma,
         j_truncate=5,  # 控制评估步数（核心参数）
         save_history=True,
