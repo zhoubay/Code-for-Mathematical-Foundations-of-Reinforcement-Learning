@@ -31,6 +31,9 @@ def truncated_policy_evaluation(env, policy, gamma, initial_v, j_truncate):
                 # ------------------------------------------------------------------------------------
                 # 通过计算每一个action的总和来计算v_new(s)
                 # v_new(s) = ∑_a policy(s, a) * (∑_r p ( r | s, a) * r + gamma * ∑_{s'} p (s' | s, a) * v(s'))
+                # 使用env.get_reward_probs和env.get_transition_probs来计算expected_r和expected_v
+                # 参考信息:  utils/grids.py::GridWorld::get_reward_probs
+                #           utils/grids.py::GridWorld::get_transition_probs
                 # 建议使用列表推导来实现下面的代码
                 # 参考信息：https://docs.python.org/zh-cn/3.13/tutorial/datastructures.html#list-comprehensions
                 # 先通过p_r计算expected_r，再通过p_s_prime计算expected_next_v，累积加权到total
