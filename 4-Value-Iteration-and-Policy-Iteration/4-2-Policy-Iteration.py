@@ -43,16 +43,13 @@ def policy_evaluation(
                 # 最后在循环外更新value_new[s]
                 # Expected code: ~3 lines
                 # ------------------------------------------------------------------------------------
-                # 计算预期奖励
                 expected_r = sum(
                     prob * r for r, prob in env.get_reward_probs(s, a).items()
                 )
-                # 计算预期下一状态价值
                 expected_next_v = sum(
                     prob * v[s_prime]
                     for s_prime, prob in env.get_transition_probs(s, a).items()
                 )
-                # 累积加权值
                 total += policy[s][a] * (expected_r + gamma * expected_next_v)
                 # ------------------------------------------------------------------------------------
                 # End of code snippet
